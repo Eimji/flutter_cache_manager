@@ -7,6 +7,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter_native_image/flutter_native_image.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:synchronized/synchronized.dart';
@@ -184,7 +185,7 @@ class CacheManager {
   }
 
   ///Get the file from the cache or online. Depending on availability and age
-  Future<File> getFile(String url, {Map<String, String> headers}) async {
+  Future<File> getFile(String url, {double width, Map<String, String> headers}) async {
     String log = "[Flutter Cache Manager] Loading $url";
 
     if (!_cacheData.containsKey(url)) {
@@ -208,7 +209,7 @@ class CacheManager {
       //If we have never downloaded this file, do download
       if (filePath == null) {
         log = "$log\nDownloading for first time.";
-        var newCacheData = await _downloadFile(url, headers, cacheObject.lock);
+        var newCacheData = await _downloadFile(url, width, headers, cacheObject.lock);
         if (newCacheData != null) {
           _cacheData[url] = newCacheData;
         }
@@ -219,7 +220,7 @@ class CacheManager {
       var cachedFileExists = await cachedFile.exists();
       if (!cachedFileExists) {
         log = "$log\nDownloading because file does not exist.";
-        var newCacheData = await _downloadFile(url, headers, cacheObject.lock,
+        var newCacheData = await _downloadFile(url, width, headers, cacheObject.lock,
             relativePath: cacheObject.relativePath);
         if (newCacheData != null) {
           _cacheData[url] = newCacheData;
@@ -233,7 +234,7 @@ class CacheManager {
       if (cacheObject.validTill == null ||
           cacheObject.validTill.isBefore(new DateTime.now())) {
         log = "$log\nUpdating file in cache.";
-        var newCacheData = await _downloadFile(url, headers, cacheObject.lock,
+        var newCacheData = await _downloadFile(url, width, headers, cacheObject.lock,
             relativePath: cacheObject.relativePath, eTag: cacheObject.eTag);
         if (newCacheData != null) {
           _cacheData[url] = newCacheData;
@@ -259,7 +260,7 @@ class CacheManager {
 
   ///Download the file from the url
   Future<CacheObject> _downloadFile(
-      String url, Map<String, String> headers, Object lock,
+      String url, double width, Map<String, String> headers, Object lock,
       {String relativePath, String eTag}) async {
     var newCache = new CacheObject(url, lock: lock);
     newCache.setRelativePath(relativePath);
@@ -281,7 +282,18 @@ class CacheManager {
         if (!(await folder.exists())) {
           folder.createSync(recursive: true);
         }
+
         await new File(filePath).writeAsBytes(response.bodyBytes);
+
+        if (width != null) {
+          ImageProperties properties = await FlutterNativeImage.getImageProperties(filePath);
+          if (width < properties.width) {
+            File thumb = await FlutterNativeImage.compressImage(filePath, quality: 100, 
+              targetWidth: width.toInt(), 
+              targetHeight: (properties.height * width / properties.width).round());
+            await thumb.copy(filePath);
+          }
+        } 
 
         return newCache;
       }
