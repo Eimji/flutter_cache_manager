@@ -35,7 +35,7 @@ class WebHelper {
         completer.complete(cacheObject);
       }).catchError((e) {
         completer.completeError(e);
-      }).whenComplete((){
+      }).whenComplete(() {
         _memCache.remove(url);
       });
 
@@ -88,7 +88,7 @@ class WebHelper {
 
   Future<bool> _handleHttpResponse(
       FileFetcherResponse response, CacheObject cacheObject, {double imageWidth}) async {
-    if (response.statusCode == 200) {
+    if (response.statusCode == 200 || response.statusCode == 201) {
       var basePath = await _store.filePath;
       _setDataFromHeaders(cacheObject, response);
       var path = p.join(basePath, cacheObject.relativePath);
